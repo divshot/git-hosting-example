@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+
+curl -H "Authorization: Bearer $GITHOST_KEYFETCH_SECRET" $GITHOST_KEYFETCH_ENDPOINT

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+REPO_ROOT=$HOME/repos
+
+# Exit with an error if we don't have the env variables we need
+if [[ -z $SSH_ORIGINAL_COMMAND ]]; then >&2 echo "Must be called with SSH_ORIGINAL_COMMAND"; exit 1; fi
+
+PARTS=()
+while read line; do
+  PARTS+=("$line")
+done < <(xargs -n 1 <<< "$SSH_ORIGINAL_COMMAND")
+
+# all of our accepted commands take one argument
+if [[ "${#PARTS[@]}" != "2" ]]; then
+  >&2 echo "Invalid command syntax."; exit 1
+fi
+
+ACCEPTABLE_COMMANDS=(git-receive-pack git-upload-pack git-upload-archive)
+
+for command in "${ACCEPTABLE_COMMANDS[@]}"; do
+  if [[ "$command" == "${PARTS[0]}" ]]; then
+    # it's an approved command, we can proceed to check authorization
+    
+    # for this simple example, users can only push to a repo that is the same
+    # as their username. you could write much more complex logic here
+    if [[ "${PARTS[1]}" != "$APP_USER.git" ]]; then
+      >&2 echo "You may only push to your own repo, $APP_USER.git"
+      exit 1
+    fi
+    
+    # we can even do neat things like create a new git repo if it doesn't
+    # already exist
+    REPO_DIR=$REPO_ROOT/${PARTS[1]}
+    if [[ ! -d $REPO_DIR ]]; then
+      mkdir -p $REPO_DIR
+      git init --bare $REPO_DIR > /dev/null
+    fi
+    
+    # now that we've authorized, let's run the command with the properly
+    # mapped directory as the argument
+    sh -c "${PARTS[0]} ${REPO_DIR}"
+  fi
+done
+
+# we didn't find an acceptable command
+>&2 echo "Invalid command provided."
+exit 1
